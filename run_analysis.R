@@ -2,90 +2,57 @@ library(dplyr)
 
 ## STEP -1: GETTING THE DATA
 ## Download zipfile if it has not been downloaded yet
-zipurl <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
-zipfile <- "UCI HAR Dataset.zip"
+filename <- "UCI HAR Dataset.zip"
 
-if(!file.exists(zipfile)) {
-        download.file(zipurl, zipfile, mode = "wb")
-}
+if (!file.exists(filename)){
+        fileURL <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
+        download.file(fileURL, filename)
+}  
 
 ## Unzip the zip file if the data folder doesn't exist
-data_all <- "UCI HAR Dataset"
-if(!file.exists(data_all)) {
-        unzip(zipfile)
+if (!file.exists("UCI HAR Dataset")) { 
+        unzip(filename) 
 }
 
-## STEP 0: READING THE DATA
-## Reading the training data
-training_subjects <- read.table(file.path(data_all, "train", "subject_train.txt"))
-training_values <- read.table(file.path(data_all, "train", "X_train.txt"))
-training_activity <- read.table(file.path(data_all, "train", "y_train.txt"))
-
-## Reading the test data
-test_subjects <- read.table(file.path(data_all, "test", "subject_test.txt"))
-test_values <- read.table(file.path(data_all, "test", "X_test.txt"))
-test_activity <- read.table(file.path(data_all, "test", "y_test.txt"))
-
-## Reading the features but no conversion of text labels to factors
-features <- read.table(file.path(data_all, "features.txt"), as.is = TRUE)
-
-## Reading the activity labels
-activities <- read.table(file.path(data_all, "activity_labels.txt"))
-colnames(activities) <- c("activityId", "activityLabel")
+## STEP 0: ASSIGNING ALL THE DATA FRAMES
+features <- read.table("UCI HAR Dataset/features.txt", col.names = c("n","functions"))
+x_test <- read.table("UCI HAR Dataset/test/X_test.txt", col.names = features$functions)
+y_test <- read.table("UCI HAR Dataset/test/y_test.txt", col.names = "code")
+subject_test <- read.table("UCI HAR Dataset/test/subject_test.txt", col.names = "subject")
+x_train <- read.table("UCI HAR Dataset/train/X_train.txt", col.names = features$functions)
+y_train <- read.table("UCI HAR Dataset/train/y_train.txt", col.names = "code")
+subject_train <- read.table("UCI HAR Dataset/train/subject_train.txt", col.names = "subject")
+activities <- read.table("UCI HAR Dataset/activity_labels.txt", col.names = c("code", "activity"))
 
 ## STEP 1: MERGES THE TRAINING AND THE TEST SETS TO CREATE ONE DATE SET
-## Concatenating the individual data tables into one data table
-human_activity <- rbind(
-        cbind(training_subjects, training_values, training_activity),
-        cbind(test_subjects, test_values, test_activity)
-)
-
-## Removing the individual data tables for memory efficiency
-rm(training_subjects, training_values, training_activity, 
-   test_subjects, test_values, test_activity)
-
-## Assigning names to columns
-colnames(human_activity) <- c("subject", features[, 2], "activity")
+X <- rbind(x_train, x_test)
+Y <- rbind(y_train, y_test)
+Subject <- rbind(subject_train, subject_test)
+MergedData <- cbind(Subject, Y, X)
 
 ## STEP 2: EXTRACT ONLY THE MEASUREMENTS ON THE MEAN AND STANDARD DEVIATION FOR EACH MEASUREMENT
-## Determining which columns of the data set to keep based on column name
-columns_to_keep <- grepl("subject|activity|mean|std", colnames(human_activity))
-human_activity <- human_activity[, columns_to_keep]
+TidyData <- MergedData %>% select(subject, code, contains("mean"), contains("std"))
 
 ## STEP 3: USE DESCRIPTIVE ACTIVITY NAMES TO NAME THE ACTIVITIES IN THE DATA SET
-## Replacing the activity values with named factor levels
-human_activity$activity <- factor(human_activity$activity, 
-                                 levels = activities[, 1], labels = activities[, 2])
+TidyData$code <- activities[TidyData$code, 2]
 
 ## STEP 4: APPROPRIATELY LABEL THE DATA SET WITH DESCRIPTIVE VARIABLE NAMES
-## Getting the column names
-human_activity_cols <- colnames(human_activity)
-
-## Removing the special characters
-human_activity_cols <- gsub("[\\(\\)-]", "", human_activity_cols)
-
-## Expanding the abbreviations and cleaning up the names
-human_activity_cols <- gsub("^f", "frequencyDomain", human_activity_cols)
-human_activity_cols <- gsub("^t", "timeDomain", human_activity_cols)
-human_activity_cols <- gsub("Acc", "Accelerometer", human_activity_cols)
-human_activity_cols <- gsub("Gyro", "Gyroscope", human_activity_cols)
-human_activity_cols <- gsub("Mag", "Magnitude", human_activity_cols)
-human_activity_cols <- gsub("Freq", "Frequency", human_activity_cols)
-human_activity_cols <- gsub("mean", "Mean", human_activity_cols)
-human_activity_cols <- gsub("std", "StandardDeviation", human_activity_cols)
-
-## Correcting typos
-human_activity_cols <- gsub("BodyBody", "Body", human_activity_cols)
-
-## Using new labels as column names
-colnames(human_activity) <- human_activity_cols
+names(TidyData)[2] = "activity"
+names(TidyData)<-gsub("Acc", "Accelerometer", names(TidyData))
+names(TidyData)<-gsub("Gyro", "Gyroscope", names(TidyData))
+names(TidyData)<-gsub("BodyBody", "Body", names(TidyData))
+names(TidyData)<-gsub("Mag", "Magnitude", names(TidyData))
+names(TidyData)<-gsub("^t", "Time", names(TidyData))
+names(TidyData)<-gsub("^f", "Frequency", names(TidyData))
+names(TidyData)<-gsub("tBody", "TimeBody", names(TidyData))
+names(TidyData)<-gsub("-mean()", "Mean", names(TidyData), ignore.case = TRUE)
+names(TidyData)<-gsub("-std()", "STD", names(TidyData), ignore.case = TRUE)
+names(TidyData)<-gsub("-freq()", "Frequency", names(TidyData), ignore.case = TRUE)
+names(TidyData)<-gsub("angle", "Angle", names(TidyData))
+names(TidyData)<-gsub("gravity", "Gravity", names(TidyData))
 
 ## STEP 5: CREATE A SECOND, INDEPENDENT TIDY SET WITH THE AVERAGE OF EACH VARIABLE FOR EACH ACITVITY AND EACH SUBJECT
-## Grouping by subject and activity and summarising using mean
-human_activity_means <- human_activity %>% 
+tidy_data <- TidyData %>%
         group_by(subject, activity) %>%
-        summarise_each(funs(mean))
-
-## Creating the second tidy data set named "tidy_data.txt"
-write.table(human_activity_means, "tidy_data.txt", row.names = FALSE, 
-            quote = FALSE)
+        summarise_all(funs(mean))
+write.table(tidy_data, "tidy_data.txt", row.name=FALSE)
